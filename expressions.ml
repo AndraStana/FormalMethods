@@ -144,6 +144,61 @@ let b = ("B", "A",
                 )
             ]
  );;
+
+ (*-------------------------------------------------------------------------------------*)
+
+(*
+Class Main extends Object
+{ #
+    Void main(){ 
+        (B o1) o1=new B(0,null);
+        { 
+            (A o2) o2=new A(2);
+            {  
+                (A o3) o3=new A(3);
+                o2 =o1.m2(o2,o3)
+            }
+        }
+    }
+}
+*)
+(*class decl*)
+let exp3=("Main", "Object",
+    (*fields decl list*)
+    [],
+    (*methods decl list*)
+    [
+        (Tprim Tvoid), "main", 
+        (*param list*)
+        [],
+        (*body*)
+        Blk(
+            Bvar( 
+                (Tclass "B"), "o1",
+                Seq(
+                    AsgnV( "o1", NewObj ( "B", [ Value (Int 0); Value (Vnull)])),
+                    Blk(
+                        Bvar( (Tclass "A"), "o2",
+                            Seq (
+                                AsgnV("o2", NewObj ( "A", [Value (Int 2) ])), 
+                                Blk(
+                                    Bvar(
+                                        (Tclass "A"), "o3",
+                                        Seq(
+                                            AsgnV( "o3", NewObj ("A", [(Value (Int 3))])),
+                                            AsgnV("o2", MthCall ("o1", "m2", [ ( Var "o2"); (Var "o3")]))
+                                        )
+                                    )
+                                )
+                            ) 
+
+                        )
+                    )
+                )
+            )
+        )
+    ]
+);;
 (*-------------------------------------------------------------------------------------*)
 
 
