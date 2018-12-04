@@ -241,7 +241,7 @@ let subtype program type1 type2 = match type1, type2 with
     | Tclass(className), Tclass("Object") -> (existsClassInProgram program className)
     | Tbot, Tclass(className) -> (existsClassInProgram program className)
     | Tclass(className1), Tclass(className2) -> className1 = className2 && (existsClassInProgram program className1) && (existsClassInProgram program className2) 
-    (* | inheritence rule *)
+    (* | inheritance rule *)
     | _ , _ -> false;;
     
 
