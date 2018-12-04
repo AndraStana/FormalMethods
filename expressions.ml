@@ -163,7 +163,7 @@ Class Main extends Object
 }
 *)
 (*class decl*)
-let exp3=("Main", "Object",
+let main=("Main", "Object",
     (*fields decl list*)
     [],
     (*methods decl list*)
@@ -205,23 +205,53 @@ let exp3=("Main", "Object",
 
 
 
-let rec existsClassInProgram program className =  match program with
+let rec existsClassInProgram program className = match program with
     | [] -> false
-    | h::t -> match h with 
+    | _ when className="Object" -> true
+    | head::tail -> match head with 
         | (cName, cDeclaration) when cName = className ->  true 
-        | (_, classDeclaration) -> (existsClassInProgram t className);;
+        | (_, classDeclaration) -> (existsClassInProgram tail className);;
+
+
+
+
+(* let rec isSubclass program className1 className2 = match program with
+    | [] -> false
+    | head::tail ->( match head with
+        | (classDecl, className) when className1 = className -> (match classDecl with ->
+            | (_, baseClass, _, _) -> if baseClass = className2 then true else isSubclass()
+
+
+        )
+
+    ) *)
+
+    
+
+
+
 
 
 (* todo incomplete!! *)
-let subtype program type1 type2 = match type1 type2 with
+let subtype program type1 type2 = match type1, type2 with
     | Tprim(Tint), Tprim(Tint) -> true
     | Tprim(Tfloat), Tprim(Tfloat) -> true
     | Tprim(Tbool), Tprim(Tbool) -> true
     | Tprim(Tvoid), Tprim(Tvoid) -> true
     | Tclass(className), Tclass("Object") -> (existsClassInProgram program className)
+    | Tbot, Tclass(className) -> (existsClassInProgram program className)
+    | Tclass(className1), Tclass(className2) -> className1 = className2 && (existsClassInProgram program className1) && (existsClassInProgram program className2) 
+    (* | inheritence rule *)
     | _ , _ -> false;;
     
 
-let response = (existsClassInProgram [ ("A",a) ] "A");;
+let myProgram = [ ("A",a ); ("B",b); ("Main", main)  ];;
+
+let response = (existsClassInProgram myProgram "B");;
 
 Printf.printf "%b\n" response;;
+
+let subtypeResponse1 =  subtype myProgram (Tclass "B") (Tclass "Object")   ;;
+
+
+Printf.printf "%b\n" subtypeResponse1;;
