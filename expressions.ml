@@ -22,7 +22,7 @@ class A extends Object
 
 
 (* classDecl *)
-let exp1  = ("A", "Object",
+let a  = ("A", "Object",
 
         (* fields Declaration List *)
         [ (Tprim Tint),"f1"],
@@ -79,7 +79,7 @@ class B extends A
 
 
 (* classDecl *)
-let exp2 = ("B", "A",
+let b = ("B", "A",
 
             (* fields Declaration List *)
             [
@@ -145,3 +145,28 @@ let exp2 = ("B", "A",
             ]
  );;
 (*-------------------------------------------------------------------------------------*)
+
+
+
+
+
+let rec existsClassInProgram program className =  match program with
+    | [] -> false
+    | h::t -> match h with 
+        | (cName, cDeclaration) when cName = className ->  true 
+        | (_, classDeclaration) -> (existsClassInProgram t className);;
+
+
+(* todo incomplete!! *)
+let subtype program type1 type2 = match type1 type2 with
+    | Tprim(Tint), Tprim(Tint) -> true
+    | Tprim(Tfloat), Tprim(Tfloat) -> true
+    | Tprim(Tbool), Tprim(Tbool) -> true
+    | Tprim(Tvoid), Tprim(Tvoid) -> true
+    | Tclass(className), Tclass("Object") -> (existsClassInProgram program className)
+    | _ , _ -> false;;
+    
+
+let response = (existsClassInProgram [ ("A",a) ] "A");;
+
+Printf.printf "%b\n" response;;
