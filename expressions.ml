@@ -311,7 +311,7 @@ let wellTypedExpr program environment expCrt = match expCrt with
     | Value (Bool v ) -> Tprim Tbool 
     | Var v -> typeFromEnv environment v
     (*value field= className + fieldName *)
-    | Vfld (classN, fieldN) -> if (existsClassInProgram program classN) then (Tprim Tbool) else raise (ClassNotDefinedException classN);;
+    | Vfld (classN, fieldN) -> if (existsClassInProgram program classN) then (typeFromEnv (getFields program classN) fieldN ) else raise (ClassNotDefinedException classN);;
 
 
 (*environment is a list of (string*typ) *)
@@ -321,3 +321,5 @@ let result_type= wellTypedExpr ast env (Value (Bool true));;
 let result_type= wellTypedExpr ast env (Var "n");;
 *)
 let result_type= wellTypedExpr ast env (Vfld ("A","Field"));;
+
+(getFields ast "B");;
