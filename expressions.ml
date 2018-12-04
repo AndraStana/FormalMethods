@@ -264,11 +264,17 @@ let rec fieldlist program className = match program with
         | (_ , cDecl) -> (fieldlist t className);;
 *)
 
+(*transform field list from (type,string) to (string,type) *)
+let rec reverse_list lst = match lst with
+    | [] -> []
+    | h::t -> match h with 
+         (fType,fName) -> (fName,fType):: (reverse_list t);;
+
 let rec fieldlist program className = match program with
     | [] -> []
     | h::t -> match h with 
         | (cName, cDecl) when cName = className -> 
-           ( match cDecl with (_,_,f,_) -> f)
+           ( match cDecl with (_,_,f,_) -> (reverse_list f) )
         | (_ , cDecl) -> (fieldlist t className);;
 
 let rec getBaseClass program className = match program with 
@@ -280,10 +286,38 @@ let rec getBaseClass program className = match program with
 
 let rec getFields program className = match className with
   | "Object" -> []
-  | aux -> (fieldlist program aux)::(getFields program (getBaseClass program aux ));;
+  | aux -> List.append (fieldlist program aux) (getFields program (getBaseClass program aux ));;
  (* 
     | aux -> (fieldList program aux) ;; (*varianta 2*)
 *)
 
 let ast = [("A",a);("B",b);("Main",main)];;
 let result=(getFields ast "B");; (*list of evaluator.typ and string *))
+
+
+(*---------------------Well-typed expressions------------- *)
+(* looks for a field with given name in env= list of (string*type) and returns its type*)
+let rec typeFromEnv env vName = match env with
+    | [] -> raise (VariableNotFoundException vName)
+    | h::t -> match h with
+        | (name,vType) when name=vName -> vType
+        | (_,vType) -> (typeFromEnv t vName);; 
+    
+let wellTypedExpr program environment expCrt = match expCrt with
+    | Value (Vnull) -> Tbot
+    | Value (Int v ) -> Tprim Tint 
+    | Value (Float v ) -> Tprim Tfloat
+    | Value (Vvoid) -> Tprim Tvoid
+    | Value (Bool v ) -> Tprim Tbool 
+    | Var v -> typeFromEnv environment v
+    (*value field= className + fieldName *)
+    | Vfld (classN, fieldN) -> if (existsClassInProgram program classN) then (Tprim Tbool) else raise (ClassNotDefinedException classN);;
+
+
+(*environment is a list of (string*typ) *)
+let env =  [("f2",(Tclass "A"));("f1",(Tprim Tint))];;
+(*
+let result_type= wellTypedExpr ast env (Value (Bool true));;
+let result_type= wellTypedExpr ast env (Var "n");;
+*)
+let result_type= wellTypedExpr ast env (Vfld ("A","Field"));;
