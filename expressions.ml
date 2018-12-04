@@ -163,7 +163,7 @@ Class Main extends Object
 }
 *)
 (*class decl*)
-let exp3=("Main", "Object",
+let main=("Main", "Object",
     (*fields decl list*)
     [],
     (*methods decl list*)
@@ -224,4 +224,36 @@ let subtype program type1 type2 = match type1 type2 with
 
 let response = (existsClassInProgram [ ("A",a) ] "A");;
 
-Printf.printf "%b\n" response;;
+(*doesn't work*)
+(* 
+let rec fieldlist program className = match program with
+    | [] -> []
+    | h::t -> match h with 
+        | (cName, cDecl) when cName = className -> 
+           ( match cDecl with (_,b,f,_) ->List.append f ( fieldlist program b ) )
+        | (_ , cDecl) -> (fieldlist t className);;
+*)
+
+let rec fieldlist program className = match program with
+    | [] -> []
+    | h::t -> match h with 
+        | (cName, cDecl) when cName = className -> 
+           ( match cDecl with (_,_,f,_) -> f)
+        | (_ , cDecl) -> (fieldlist t className);;
+
+let rec getBaseClass program className = match program with 
+    | [] -> "" 
+    | h::t -> match h with 
+        | (cName, cDecl) when cName = className ->
+            (match cDecl with (_,base,_,_) -> base)
+        | (_, cDecl) -> (getBaseClass t className);;
+
+let rec getFields program className = match className with
+  | "Object" -> []
+  | aux -> (fieldlist program aux)::(getFields program (getBaseClass program aux ));;
+ (* 
+    | aux -> (fieldList program aux) ;; (*varianta 2*)
+*)
+
+let ast = [("A",a);("B",b);("Main",main)];;
+let result=(getFields ast "B");; (*list of evaluator.typ and string *))
