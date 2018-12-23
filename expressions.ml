@@ -191,7 +191,6 @@ let main=("Main", "Object",
                                     )
                                 )
                             ) 
-
                         )
                     )
                 )
@@ -199,10 +198,14 @@ let main=("Main", "Object",
         )
     ]
 );;
+
+let myProgram = [ ("A",a ); ("B",b); ("Main", main)  ];;
+
 (*-------------------------------------------------------------------------------------*)
 
 
 
+ (* *********************************         SUBTYPING          *********************************       *)
 
 
 let rec existsClassInProgram program className = match program with
@@ -213,26 +216,20 @@ let rec existsClassInProgram program className = match program with
         | (_, classDeclaration) -> (existsClassInProgram tail className);;
 
 
+(* B extends A => subtype B A = true *)
+(* needed wholeProgram parameter in order to search again in the whole program whether class B is a subtype of a subtype of class A *)
+ let rec isSubclassRec wholeProgram program className1 className2 = match program, className1, className2 with
+    | _, c1,c2 when  c1 = c2  -> true
+    | [],_,_ -> false
+    | head::tail,c1,c2 -> match head with
+        | (className, classDecl) when c1 = className -> (match classDecl with 
+            | (_, baseClass, _, _) -> if baseClass = c2 then true else (isSubclassRec wholeProgram wholeProgram baseClass c2) )
+        | (_ , _)-> ( isSubclassRec wholeProgram tail c1 c2 ) ;;
 
-
-(* let rec isSubclass program className1 className2 = match program with
-    | [] -> false
-    | head::tail ->( match head with
-        | (classDecl, className) when className1 = className -> (match classDecl with ->
-            | (_, baseClass, _, _) -> if baseClass = className2 then true else isSubclass()
-
-
-        )
-
-    ) *)
-
-    
+let isSubclass program className1 className2 = (isSubclassRec program program className1 className2);;
 
 
 
-
-
-(* todo incomplete!! *)
 let subtype program type1 type2 = match type1, type2 with
     | Tprim(Tint), Tprim(Tint) -> true
     | Tprim(Tfloat), Tprim(Tfloat) -> true
@@ -240,19 +237,32 @@ let subtype program type1 type2 = match type1, type2 with
     | Tprim(Tvoid), Tprim(Tvoid) -> true
     | Tclass(className), Tclass("Object") -> (existsClassInProgram program className)
     | Tbot, Tclass(className) -> (existsClassInProgram program className)
-    | Tclass(className1), Tclass(className2) -> className1 = className2 && (existsClassInProgram program className1) && (existsClassInProgram program className2) 
-    (* | inheritance rule *)
+    | Tclass(className1), Tclass(className2) -> (existsClassInProgram program className1) && (existsClassInProgram program className2) && (isSubclass program className1 className2 )
     | _ , _ -> false;;
-    
 
-let myProgram = [ ("A",a ); ("B",b); ("Main", main)  ];;
 
-let response = (existsClassInProgram myProgram "B");;
+Printf.printf "\n \n----------- SUBTYPING TESTS -------------\n \n";;
 
-Printf.printf "%b\n" response;;
+(* Testing FUNCTION: existsClassInProgram *)
+let response = (existsClassInProgram myProgram "Main");;
+Printf.printf "Exists in program: %b\n" response;;
 
-let subtypeResponse1 =  subtype myProgram (Tclass "B") (Tclass "Object")   ;;
+(* Testing FUNCTION: subtype *)
+let subtypeResponse1 =  subtype myProgram (Tclass "B") (Tclass "Object") ;;
+Printf.printf "%b --> subtype: B is subtype of Object \n" subtypeResponse1;;
+let subtypeResponse2 =  subtype myProgram Tbot (Tclass "Main") ;;
+Printf.printf "%b --> subtype: bottom is subtype of Main \n" subtypeResponse2;;
+let subtypeResponse3=  subtype myProgram (Tclass "B") (Tclass "A") ;;
+Printf.printf "%b --> subtype: B is subtype of A \n" subtypeResponse3;;
+let subtypeResponse4=  subtype myProgram (Tclass "Main") (Tclass "A") ;;
+Printf.printf "%b --> subtype: Main is subtype of A \n" subtypeResponse4;;
 
+
+ (* *********************************         FIELDLIST          *********************************       *)
+
+
+
+(* -------------------------------------------------------------------------------------------------------- *)
 
 (*doesn't work*)
 (* 
@@ -292,11 +302,18 @@ let rec getFields program className = match className with
 *)
 
 let ast = [("A",a);("B",b);("Main",main)];;
-let result=(getFields ast "B");; (*list of evaluator.typ and string *))
+let result=(getFields ast "B");; (*list of evaluator.typ and string *)
+
+
+
+
+
 
 
 (*---------------------Well-typed expressions------------- *)
 (* looks for a field with given name in env= list of (string*type) and returns its type*)
+
+
 let rec typeFromEnv env vName = match env with
     | [] -> raise (VariableNotFoundException vName)
     | h::t -> match h with
