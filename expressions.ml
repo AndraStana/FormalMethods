@@ -311,7 +311,30 @@ let wellTypedExpr program environment expCrt = match expCrt with
     | Value (Bool v ) -> Tprim Tbool 
     | Var v -> typeFromEnv environment v
     (*value field= className + fieldName *)
-    | Vfld (classN, fieldN) -> if (existsClassInProgram program classN) then (typeFromEnv (getFields program classN) fieldN ) else raise (ClassNotDefinedException classN);;
+    | Vfld (classN, fieldN) -> if (existsClassInProgram program classN) then (typeFromEnv (getFields program classN) fieldN ) else raise (ClassNotDefinedException classN)
+    (* var=expression; exp must be a subtype of var*)
+    | AsgnV (varN,exp) -> (
+        let varType= ( wellTypedExpr program environment (Var varN)) and expType= (wellTypedExpr program env exp) in
+        if (subtype program expType varType ) then
+            (Tprim Tvoid)
+        else 
+            raise (TypesDontMatchException "@Assign var")
+    )
+    (* classN.fieldN=exp*)
+    | AssgnF (classN,fieldN,exp) -> 
+    (
+        if (existsClassInProgram program classN) then
+        (
+            let fieldType= (typeFromEnv (getFields program classN) fieldN) and expType= (wellTypedExpr program exp) in
+            if (subtype program expType fieldType) then
+                (Tprim Tvoid)
+            else
+                raise (TypesDontMatchException "@Assign field")
+        )
+        else raise (ClassNotDefinedException classN)
+    )
+    (*Bvar: typ var=expr *)
+    | Bvar (typ,varN,exp) -> ;;
 
 
 (*environment is a list of (string*typ) *)
@@ -322,4 +345,3 @@ let result_type= wellTypedExpr ast env (Var "n");;
 *)
 let result_type= wellTypedExpr ast env (Vfld ("A","Field"));;
 
-(getFields ast "B");;
