@@ -20,7 +20,7 @@ and
 
 exp = Value of vall
         | Var of string 
-        | Vfld of string * string (* value field = className + fieldName *)
+        | Vfld of string * string (* value field = classInstanceName + fieldName *)
         | AsgnV of string * exp (* assign variable *)
         | AsgnF of string * string * exp (* assign field *) 
         | Blk of blkExp
