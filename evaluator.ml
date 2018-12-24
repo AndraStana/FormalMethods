@@ -79,6 +79,3 @@ fPrmList = fPrm list
 and
 
 fPrm = (typ * string);;
-exception VariableNotDefinedException of string;;
-exception ClassNotDefinedException of string;;
-exception TypesDontMatchException

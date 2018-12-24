@@ -185,7 +185,7 @@ let main=("Main", "Object",
                                     Bvar(
                                         (Tclass "A"), "o3",
                                         Seq(
-                                            AsgnV( "o3", NewObj ("A", [(Value (Int 3))])),
+                                            AsgnV("o3", NewObj ("A", [(Value (Int 3))])),
                                             AsgnV("o2", MthCall ("o1", "m2", [ ( Var "o2"); (Var "o3")]))
                                         )
                                     )
@@ -204,6 +204,36 @@ let myProgram = [ ("A",a ); ("B",b); ("Main", main)  ];;
 (*-------------------------------------------------------------------------------------*)
 
 
+ (* *********************************         EXCEPTIONS          *********************************       *)
+
+
+exception VariableNotDefinedException of string;;
+exception ClassNotDefinedException of string;;
+exception TypesDontMatchException of string;;
+
+
+ (* *********************************         PRINTING FUNCTIONS          *********************************       *)
+
+
+let print_typ givenType = match givenType with
+    | (Tprim Tint) -> Printf.printf "int "
+    | (Tprim Tfloat) -> Printf.printf "float "
+    | (Tprim Tbool) -> Printf.printf "bool "
+    | (Tprim Tvoid) -> Printf.printf "void "
+    | (Tclass className) -> Printf.printf "Class: %s " className
+    | (Tbot) -> Printf.printf "bottom "
+    | _ -> Printf.printf "TYPE NOT FOUND ";;
+    
+
+
+ let rec print_field_list list = match list with
+    | [] ->()
+    | h::t -> match h with 
+        | (fName, fType) ->  Printf.printf "Field name: %s " fName;  (print_typ fType);  Printf.printf " \n"; (print_field_list t);;
+
+       
+
+(*-------------------------------------------------------------------------------------*)
 
  (* *********************************         SUBTYPING          *********************************       *)
 
@@ -301,12 +331,21 @@ let rec getFields program className = match className with
     | aux -> (fieldList program aux) ;; (*varianta 2*)
 *)
 
+
+
+
+Printf.printf "\n \n----------- FIELDLIST TESTS -------------\n \n";;
+
 let ast = [("A",a);("B",b);("Main",main)];;
-let result=(getFields ast "B");; (*list of evaluator.typ and string *)
+
+let result1=(getFields ast "A");; (*list of evaluator.typ and string *)
+Printf.printf "\t  Field list of classss A: \n";;
+(print_field_list result1);;
 
 
-
-
+let result2=(getFields ast "B");; (*list of evaluator.typ and string *)
+Printf.printf "\t  Field list of classss B: \n";;
+(print_field_list result2);;
 
 
 
@@ -314,13 +353,16 @@ let result=(getFields ast "B");; (*list of evaluator.typ and string *)
 (* looks for a field with given name in env= list of (string*type) and returns its type*)
 
 
+      (*``````````````````````` Temporary commenting this  `````````````````````*)
+   (* 
+
 let rec typeFromEnv env vName = match env with
-    | [] -> raise (VariableNotFoundException vName)
+    | [] -> raise (VariableNotDefinedException vName)
     | h::t -> match h with
         | (name,vType) when name=vName -> vType
         | (_,vType) -> (typeFromEnv t vName);; 
     
-let wellTypedExpr program environment expCrt = match expCrt with
+ let wellTypedExpr program environment expCrt = match expCrt with
     | Value (Vnull) -> Tbot
     | Value (Int v ) -> Tprim Tint 
     | Value (Float v ) -> Tprim Tfloat
@@ -330,7 +372,9 @@ let wellTypedExpr program environment expCrt = match expCrt with
     (*value field= className + fieldName *)
     | Vfld (classN, fieldN) -> if (existsClassInProgram program classN) then (typeFromEnv (getFields program classN) fieldN ) else raise (ClassNotDefinedException classN)
     (* var=expression; exp must be a subtype of var*)
-    | AsgnV (varN,exp) -> (
+   
+  
+   | AsgnV (varN,exp) -> (
         let varType= ( wellTypedExpr program environment (Var varN)) and expType= (wellTypedExpr program env exp) in
         if (subtype program expType varType ) then
             (Tprim Tvoid)
@@ -351,14 +395,18 @@ let wellTypedExpr program environment expCrt = match expCrt with
         else raise (ClassNotDefinedException classN)
     )
     (*Bvar: typ var=expr *)
-    | Bvar (typ,varN,exp) -> ;;
+
+    | Bvar (typ,varN,exp) -> ;; 
+
 
 
 (*environment is a list of (string*typ) *)
-let env =  [("f2",(Tclass "A"));("f1",(Tprim Tint))];;
+ let env =  [("f2",(Tclass "A"));("f1",(Tprim Tint))];; 
 (*
 let result_type= wellTypedExpr ast env (Value (Bool true));;
 let result_type= wellTypedExpr ast env (Var "n");;
 *)
-let result_type= wellTypedExpr ast env (Vfld ("A","Field"));;
+ let result_type= wellTypedExpr ast env (Vfld ("A","Field"));; 
+ 
+   *)
 
