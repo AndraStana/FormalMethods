@@ -1,6 +1,3 @@
-
-
-
 type tPrim = Tint| Tfloat| Tbool| Tvoid;;
 
 
@@ -27,11 +24,19 @@ exp = Value of vall
         | Seq of exp * exp   
         | If of string * blkExp * blkExp (*  exp1 =then blk, exp2 = else blk *)
         | MthCall of string * string * varList (* className + methodName + variableList*)
+        | And of exp * exp
+        | Or of exp * exp
+        | Not of exp
         | AddInt of exp * exp
         | MulInt of exp * exp
         | DivInt of exp * exp
         | DiffInt of exp * exp
+        | AddFloat of exp * exp
+        | MulFloat of exp * exp
+        | DivFloat of exp * exp
+        | DiffFloat of exp * exp
         | Eq of exp * exp (* equal *)
+        | NEq of exp * exp (* not equal *)
         | Ge of exp * exp (* greater or equal *)
         | Gt of exp * exp (* greater than *)
         | Le of exp * exp (* lower or equal *)

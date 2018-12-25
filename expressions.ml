@@ -211,6 +211,7 @@ exception VariableNotDefinedException of string;;
 exception ClassNotDefinedException of string;;
 exception TypesDontMatchException of string;;
 exception FieldNotFoundException of string;;
+exception IncorrectVariableType of string;;
 exception Exception of string;;
 
 
@@ -355,7 +356,6 @@ Printf.printf "\t  Field list of classss B: \n";;
 (* looks for a field with given name in env= list of (string*type) and returns its type*)
 
 
-      (*``````````````````````` Temporary commenting this  `````````````````````*)
   
 let getClassNameFromClassType classType =  match classType with 
     | Tclass className -> className
@@ -404,7 +404,7 @@ let rec fieldTypeFromClass fieldList fieldName = match fieldList with
     )
 
     | AsgnF (classInstanceN, fieldN, exp) -> 
-    (
+    
         let className = (getClassNameFromClassType (typeFromEnv environment classInstanceN) ) in
         if (existsClassInProgram program className) then
         (
@@ -416,17 +416,72 @@ let rec fieldTypeFromClass fieldList fieldName = match fieldList with
                 raise (TypesDontMatchException "@Assign field")
         )
         else raise (ClassNotDefinedException className)
-    )
+    
+    | Blk (Bvar(typ,var,exp)) -> (wellTypedExpr program ((var,typ)::environment) exp)
+    | Blk (Bnvar exp) -> (wellTypedExpr program environment exp)
+    | Seq (_,exp2) -> (wellTypedExpr program environment exp2)
+    
+    (* | If of string * blkExp * blkExp|   ->  exp1 =then blk, exp2 = else blk *)
+    
+    (* | If (varName, blk1, blk2 ) ->
+        if ( subtype program (typeFromEnv environment varName) (Tprim Tbool) ) then raise (Exception "e bineeeeeeeeeee")
+        else (
+            raise (IncorrectVariableType "A subtype of bool was expected") 
+        ) *)
 
-    (*Bvar: typ var=expr *)
-    (* | Bvar (typ,varN,exp) -> ;;  *)
+
+    | AddInt ( exp1, exp2) | MulInt ( exp1, exp2) | DivInt ( exp1, exp2)  | DiffInt ( exp1, exp2)  -> 
+        let typeExp1 = (wellTypedExpr program environment exp1) and typeExp2 = (wellTypedExpr program environment exp2)
+        in 
+        if (  (subtype program typeExp1 (Tprim Tint)) && (subtype program typeExp2 (Tprim Tint)) )
+            then (Tprim Tint)
+        else 
+            raise (TypesDontMatchException "Subtypes of int were expected for optint")
+    
+     | AddFloat ( exp1, exp2) | MulFloat ( exp1, exp2) | DivFloat ( exp1, exp2)  | DiffFloat ( exp1, exp2)  -> 
+        let typeExp1 = (wellTypedExpr program environment exp1) and typeExp2 = (wellTypedExpr program environment exp2)
+        in 
+        if (  (subtype program typeExp1 (Tprim Tfloat)) && (subtype program typeExp2 (Tprim Tfloat)) )
+            then (Tprim Tfloat)
+        else 
+            raise (TypesDontMatchException "Subtypes of float were expected for optfloat")
+
+    | And ( exp1, exp2) | Or ( exp1, exp2)  -> 
+        let typeExp1 = (wellTypedExpr program environment exp1) and typeExp2 = (wellTypedExpr program environment exp2)
+        in 
+        if (  (subtype program typeExp1 (Tprim Tbool)) && (subtype program typeExp2 (Tprim Tbool)) )
+            then (Tprim Tbool)
+        else 
+            raise (TypesDontMatchException "Subtypes of bool were expected for AND/OR operators")
+
+    | Not ( exp )  -> 
+        let typeExp1 = (wellTypedExpr program environment exp)
+        in 
+        if (  (subtype program typeExp1 (Tprim Tbool)) )
+            then (Tprim Tbool)
+        else 
+            raise (TypesDontMatchException "Subtype of bool was expected for NOT operator")
+
+    | Eq ( exp1, exp2 ) |  NEq ( exp1, exp2 ) |  Ge ( exp1, exp2 ) |  Gt ( exp1, exp2 ) |  Le ( exp1, exp2 ) |  Lt ( exp1, exp2 ) ->
+        let typeExp1 = (wellTypedExpr program environment exp1) and typeExp2 = (wellTypedExpr program environment exp2) in
+
+            if ( not ( (subtype program typeExp1 typeExp2) && (subtype program typeExp2 typeExp1) ) ) then
+                raise (TypesDontMatchException "The exp types should be subtypes of each other")
+            else
+            (
+                match typeExp1, typeExp2 with 
+                    | (Tclass class1),(Tclass class2) when ((existsClassInProgram program class1) || (existsClassInProgram program class2)  ) ->   raise (TypesDontMatchException "The exp types shouldn't be declared classes")
+                    | (Tclass class1) , _ when (existsClassInProgram program class1) ->  raise (TypesDontMatchException "The exp types shouldn't be declared classes")
+                    | _ , (Tclass class2) when (existsClassInProgram program class2) ->  raise (TypesDontMatchException "The exp types shouldn't be declared classes")
+                    | _ , _ -> (Tprim Tbool) 
+            )
 
     | _ -> raise (Exception " DELETE ME ") ;;
    
    
 Printf.printf "\n \n----------- WELL-TYPED EXPRESSIONS TESTS -------------\n \n";;
 
-let env =  [("f2",(Tclass "A"));("f1",(Tprim Tint)); ( "z", (Tprim Tint) )];; 
+let env =  [("f2",(Tclass "A"));("f1",(Tprim Tint)); ( "z", (Tprim Tint) ); ("m", (Tprim Tbool) )];; 
 
 Printf.printf "wellTypedExpr ast env (Value (Bool true))   :  ";;
 print_typ ( wellTypedExpr ast env (Value (Bool true)));;
@@ -450,10 +505,42 @@ print_typ (wellTypedExpr myProgram env (Vfld ("f2","f1")));;
 Printf.printf "wellTypedExpr (AsgnV ('z', Value (Int 1)) )  :  ";;
 print_typ (wellTypedExpr myProgram env (AsgnV ("z", Value (Int 1)) ));; 
 
-Printf.printf "wellTypedExpr ( AsgnF('f2','f1', Value (Int 1))  ) :  ";;
-print_typ (wellTypedExpr myProgram env ( AsgnF("f2","f1", Value (Int 1)) ));; 
+Printf.printf "wellTypedExpr (AsgnF('f2','f1', Value (Int 1))  ) :  ";;
+print_typ (wellTypedExpr myProgram env (AsgnF("f2","f1", Value (Int 1)) ));; 
+
+Printf.printf "wellTypedExpr (Blk(Bvar ( (Tprim Tint), 'c',(AsgnV ('c', Value (Int 1)) ) )) ) :";;
+print_typ (wellTypedExpr myProgram env (Blk(Bvar ( (Tprim Tint), "c",(AsgnV ("c", Value (Int 1)) ) ))   ));; 
+
+Printf.printf "wellTypedExpr (Blk(Bnvar (AsgnV ('z', Value (Int 1)) )) ) :";;
+print_typ (wellTypedExpr myProgram env (Blk(Bnvar (AsgnV ("z", Value (Int 1)) ))  ));; 
+
+Printf.printf "wellTypedExpr (Seq ( AsgnV ('z', Value (Int 1)) , AsgnF ('f2','f1', Value (Int 1))  ) ) :";;
+print_typ (wellTypedExpr myProgram env (Seq (  AsgnV ("z", Value (Int 1)) , AsgnF ("f2","f1", Value (Int 1))  )  ));; 
 
 
 
+        (* Uncomment this when wellTypedExp is implemented for If stmt *)
+
+(* let ifStmt = If ("m",
+        Bnvar ( (AsgnV ("z", Value (Int 1)) )),
+        Bnvar ( (AsgnF("f2","f1", Value (Int 1))  ) )
+);;
+
+Printf.printf "wellTypedExpr ( If ('m',
+        Bnvar ( (AsgnV ('z', Value (Int 1)) )),
+        Bnvar ( (AsgnF('f2','f1', Value (Int 1))  ) )) 
+)";;
+print_typ (wellTypedExpr myProgram env ifStmt ) ;;  *)
+
+Printf.printf "wellTypedExpr (AddInt ( Var 'z',(Value (Int 1)) ) ) : ";;
+print_typ (wellTypedExpr myProgram env (AddInt ( Var "z",(Value (Int 1)) )));; 
+
+Printf.printf "wellTypedExpr (And ( Var 'm', Var 'm') ) :";;
+print_typ (wellTypedExpr myProgram env (And ( Var "m", Var "m") ));; 
+
+Printf.printf "wellTypedExpr ( Gt ((Var 'z'), (Vfld 'f2' 'f1')) ) : ";;
+print_typ (wellTypedExpr myProgram env (Gt ( Var "z" , Vfld ("f2", "f1")    ))) ;; 
 
 
+
+Printf.printf "\n \n----------- *********************** -------------\n \n";;
