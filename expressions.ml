@@ -234,6 +234,10 @@ let print_typ givenType = match givenType with
     | h::t -> match h with 
         | (fName, fType) ->  Printf.printf "Field name: %s " fName;  (print_typ fType);  Printf.printf " \n"; (print_field_list t);;
 
+let rec print_string_list list = match list with
+    | [] -> Printf.printf "\n"
+    | h::t -> match h with 
+        | text -> Printf.printf "  %s  \n" text; (print_string_list t);;
        
 
 (*-------------------------------------------------------------------------------------*)
@@ -274,7 +278,7 @@ let subtype program type1 type2 = match type1, type2 with
     | _ , _ -> false;;
 
 
-Printf.printf "\n \n----------- SUBTYPING TESTS -------------\n \n";;
+Printf.printf "\n \n----------- SUBTYPING TESTS ----------------------------------------------------\n \n";;
 
 (* Testing FUNCTION: existsClassInProgram *)
 let response = (existsClassInProgram myProgram "Main");;
@@ -297,15 +301,6 @@ Printf.printf "%b --> subtype: Main is subtype of A \n" subtypeResponse4;;
 
 (* -------------------------------------------------------------------------------------------------------- *)
 
-(*doesn't work*)
-(* 
-let rec fieldlist program className = match program with
-    | [] -> []
-    | h::t -> match h with 
-        | (cName, cDecl) when cName = className -> 
-           ( match cDecl with (_,b,f,_) ->List.append f ( fieldlist program b ) )
-        | (_ , cDecl) -> (fieldlist t className);;
-*)
 
 (*transform field list from (type,string) to (string,type) *)
 let rec reverse_list lst = match lst with
@@ -336,8 +331,7 @@ let rec getFields program className = match className with
 
 
 
-
-Printf.printf "\n \n----------- FIELDLIST TESTS -------------\n \n";;
+Printf.printf "\n \n----------- FIELDLIST TESTS ----------------------------------------------------\n \n";;
 
 let ast = [("A",a);("B",b);("Main",main)];;
 
@@ -356,7 +350,32 @@ Printf.printf "\t  Field list of classss B: \n";;
 (* looks for a field with given name in env= list of (string*type) and returns its type*)
 
 
-  
+
+let rec existsElementInList element list= match list with
+    | [] -> false
+    | h::t -> if h = element then true else (existsElementInList element t);;
+
+let rec getLeastMaximumTypeFromLists list1 list2  = match list1 with
+    | [] ->  raise (Exception "No common type was found" );
+    | h::t ->  if (existsElementInList h list2) then h else (getLeastMaximumTypeFromLists t list2)
+
+
+let rec getOrderedSuperClassesRec wholeProgram program className = match program with 
+    | [] -> []
+    | head::tail -> match head with
+        | (cName, classDecl ) when cName = className -> ( match classDecl with
+            | (_, baseClass, _, _) -> if baseClass = "Object" then [ "Object" ] else baseClass :: (getOrderedSuperClassesRec wholeProgram wholeProgram baseClass) )
+        | (_ , classDecl ) -> (getOrderedSuperClassesRec wholeProgram tail className);;
+
+let getOrderedSuperClasses program className = className::(getOrderedSuperClassesRec program program className);;
+
+
+let rec getLeastMaximumType program className1 className2 =
+    let superClassesList1  = (getOrderedSuperClasses program className1)
+        and superClassesList2  = (getOrderedSuperClasses program className2)
+    in (getLeastMaximumTypeFromLists superClassesList1 superClassesList2);;
+
+
 let getClassNameFromClassType classType =  match classType with 
     | Tclass className -> className
     | _ -> raise (Exception "The provided parameter is not of type Tclass");;
@@ -376,7 +395,9 @@ let rec fieldTypeFromClass fieldList fieldName = match fieldList with
         | (name,vType) when name=fieldName -> vType
         | (_,vType) -> (fieldTypeFromClass t fieldName);; 
 
-  let rec wellTypedExpr program environment expCrt = match expCrt with
+
+
+let rec wellTypedExpr program environment expCrt = match expCrt with
     | Value (Vnull) -> Tbot
     | Value (Int v ) -> Tprim Tint 
     | Value (Float v ) -> Tprim Tfloat
@@ -420,16 +441,20 @@ let rec fieldTypeFromClass fieldList fieldName = match fieldList with
     | Blk (Bvar(typ,var,exp)) -> (wellTypedExpr program ((var,typ)::environment) exp)
     | Blk (Bnvar exp) -> (wellTypedExpr program environment exp)
     | Seq (_,exp2) -> (wellTypedExpr program environment exp2)
-    
-    (* | If of string * blkExp * blkExp|   ->  exp1 =then blk, exp2 = else blk *)
-    
-    (* | If (varName, blk1, blk2 ) ->
-        if ( subtype program (typeFromEnv environment varName) (Tprim Tbool) ) then raise (Exception "e bineeeeeeeeeee")
+    | If (varName, blk1, blk2 ) ->
+        if ( not (subtype program (typeFromEnv environment varName) (Tprim Tbool)) ) then raise (IncorrectVariableType "A subtype of bool was expected ofr if variable") 
         else (
-            raise (IncorrectVariableType "A subtype of bool was expected") 
-        ) *)
-
-
+            
+            let typeExp1  = (wellTypedExpr program environment (Blk blk1) ) and  typeExp2  = (wellTypedExpr program environment (Blk blk2) ) in
+                match typeExp1, typeExp2 with
+                    | (Tprim Tint), (Tprim Tint) -> (Tprim Tint) 
+                    | (Tprim Tfloat), (Tprim Tfloat) -> (Tprim Tfloat) 
+                    | (Tprim Tbool), (Tprim Tbool) -> (Tprim Tbool) 
+                    | (Tprim Tvoid), (Tprim Tvoid) -> (Tprim Tvoid) 
+                    | Tbot, Tbot -> Tbot
+                    | (Tclass className1),(Tclass className2) -> (Tclass (getLeastMaximumType program className1 className2))
+                    | _ , _ -> raise (TypesDontMatchException "The expressions' types of the blocks from the if statement are incompatible")
+        )
     | AddInt ( exp1, exp2) | MulInt ( exp1, exp2) | DivInt ( exp1, exp2)  | DiffInt ( exp1, exp2)  -> 
         let typeExp1 = (wellTypedExpr program environment exp1) and typeExp2 = (wellTypedExpr program environment exp2)
         in 
@@ -479,7 +504,40 @@ let rec fieldTypeFromClass fieldList fieldName = match fieldList with
     | _ -> raise (Exception " DELETE ME ") ;;
    
    
-Printf.printf "\n \n----------- WELL-TYPED EXPRESSIONS TESTS -------------\n \n";;
+Printf.printf "\n \n----------- WELL-TYPED EXPRESSIONS TESTS ----------------------------------------------------\n \n";;
+
+
+Printf.printf "getLeastMaximumType 'A' 'B'   :  ";;
+Printf.printf  " %s  \n"  (getLeastMaximumType myProgram "A" "B" )  ;;
+
+
+Printf.printf "getLeastMaximumType 'B' 'A'   :  ";;
+Printf.printf  " %s  \n"  (getLeastMaximumType myProgram "B" "A" )  ;;
+
+Printf.printf "getLeastMaximumType 'Main' 'B' )  :  ";;
+Printf.printf  " %s  \n"  (getLeastMaximumType myProgram "Main" "B" )  ;;
+
+
+Printf.printf "getLeastMaximumType 'Main' 'A'   :  ";;
+Printf.printf  " %s  \n"  (getLeastMaximumType myProgram "Main" "A" )  ;;
+
+
+Printf.printf ("\n\n");;
+
+
+Printf.printf "(getOrderedSuperClasses myProgram, 'A' )   :  \n";;
+print_string_list ( (getOrderedSuperClasses myProgram "A" )  );;
+
+Printf.printf "(getOrderedSuperClasses myProgram, 'B' )   :  \n";;
+print_string_list ( (getOrderedSuperClasses myProgram "B" )  );;
+
+Printf.printf "(getOrderedSuperClasses myProgram, 'Main' )   :  \n";;
+print_string_list ( (getOrderedSuperClasses myProgram "Main" )  );;
+
+Printf.printf ("\n\n");;
+
+
+
 
 let env =  [("f2",(Tclass "A"));("f1",(Tprim Tint)); ( "z", (Tprim Tint) ); ("m", (Tprim Tbool) )];; 
 
@@ -508,29 +566,21 @@ print_typ (wellTypedExpr myProgram env (AsgnV ("z", Value (Int 1)) ));;
 Printf.printf "wellTypedExpr (AsgnF('f2','f1', Value (Int 1))  ) :  ";;
 print_typ (wellTypedExpr myProgram env (AsgnF("f2","f1", Value (Int 1)) ));; 
 
-Printf.printf "wellTypedExpr (Blk(Bvar ( (Tprim Tint), 'c',(AsgnV ('c', Value (Int 1)) ) )) ) :";;
+Printf.printf "wellTypedExpr (Blk(Bvar ( (Tprim Tint), 'c',(AsgnV ('c', Value (Int 1)) ) )) ) : ";;
 print_typ (wellTypedExpr myProgram env (Blk(Bvar ( (Tprim Tint), "c",(AsgnV ("c", Value (Int 1)) ) ))   ));; 
 
 Printf.printf "wellTypedExpr (Blk(Bnvar (AsgnV ('z', Value (Int 1)) )) ) :";;
 print_typ (wellTypedExpr myProgram env (Blk(Bnvar (AsgnV ("z", Value (Int 1)) ))  ));; 
 
-Printf.printf "wellTypedExpr (Seq ( AsgnV ('z', Value (Int 1)) , AsgnF ('f2','f1', Value (Int 1))  ) ) :";;
+Printf.printf "wellTypedExpr (Seq ( AsgnV ('z', Value (Int 1)) , AsgnF ('f2','f1', Value (Int 1))  ) ) : ";;
 print_typ (wellTypedExpr myProgram env (Seq (  AsgnV ("z", Value (Int 1)) , AsgnF ("f2","f1", Value (Int 1))  )  ));; 
 
-
-
-        (* Uncomment this when wellTypedExp is implemented for If stmt *)
-
-(* let ifStmt = If ("m",
+let ifStmt = If ("m",
         Bnvar ( (AsgnV ("z", Value (Int 1)) )),
         Bnvar ( (AsgnF("f2","f1", Value (Int 1))  ) )
 );;
-
-Printf.printf "wellTypedExpr ( If ('m',
-        Bnvar ( (AsgnV ('z', Value (Int 1)) )),
-        Bnvar ( (AsgnF('f2','f1', Value (Int 1))  ) )) 
-)";;
-print_typ (wellTypedExpr myProgram env ifStmt ) ;;  *)
+Printf.printf "wellTypedExpr ( If ('m', Bnvar ( (AsgnV ('z', Value (Int 1)) )), Bnvar ( (AsgnF('f2','f1', Value (Int 1))  ) )) ) : ";;
+print_typ (wellTypedExpr myProgram env ifStmt ) ;; 
 
 Printf.printf "wellTypedExpr (AddInt ( Var 'z',(Value (Int 1)) ) ) : ";;
 print_typ (wellTypedExpr myProgram env (AddInt ( Var "z",(Value (Int 1)) )));; 
@@ -538,7 +588,7 @@ print_typ (wellTypedExpr myProgram env (AddInt ( Var "z",(Value (Int 1)) )));;
 Printf.printf "wellTypedExpr (And ( Var 'm', Var 'm') ) :";;
 print_typ (wellTypedExpr myProgram env (And ( Var "m", Var "m") ));; 
 
-Printf.printf "wellTypedExpr ( Gt ((Var 'z'), (Vfld 'f2' 'f1')) ) : ";;
+Printf.printf "wellTypedExpr (Gt ((Var 'z'), (Vfld 'f2' 'f1')) ) : ";;
 print_typ (wellTypedExpr myProgram env (Gt ( Var "z" , Vfld ("f2", "f1")    ))) ;; 
 
 
