@@ -42,6 +42,10 @@ exp = Value of vall
         | Le of exp * exp (* lower or equal *)
         | Lt of exp * exp (* lower than *)
         | NewObj of string * varList
+        | Cast of string * string (* Cast("className", "variableName") *)
+        | InstanceOf of string * string (* InstanceOf("variableName", "className") *)
+        | While of string * blkExp
+
 
 and
 
