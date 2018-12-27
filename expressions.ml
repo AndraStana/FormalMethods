@@ -109,8 +109,8 @@ let b = ("B", "A",
                                         Seq(
                                             AsgnV( "n",
                                                 DiffInt (
-                                                    MthCall ("x","m1", [ Value (Int 1);  Value (Int 2)  ]),
-                                                    MthCall ("y","m1", [ Value (Int 2); Value (Int 1)  ])
+                                                    MthInv ("x","m1", [ Value (Int 1);  Value (Int 2)  ]),
+                                                    MthInv ("y","m1", [ Value (Int 2); Value (Int 1)  ])
                                                 )
                                             ),
                                             Blk(
@@ -186,7 +186,7 @@ let main=("Main", "Object",
                                         (Tclass "A"), "o3",
                                         Seq(
                                             AsgnV("o3", NewObj ("A", [(Value (Int 3))])),
-                                            AsgnV("o2", MthCall ("o1", "m2", [ ( Var "o2"); (Var "o3")]))
+                                            AsgnV("o2", MthInv ("o1", "m2", [ ( Var "o2"); (Var "o3")]))
                                         )
                                     )
                                 )
@@ -209,6 +209,7 @@ let myProgram = [ ("A",a ); ("B",b); ("Main", main)  ];;
 
 exception VariableNotDefinedException of string;;
 exception ClassNotDefinedException of string;;
+exception MethodNotDefinedException of string;;
 exception TypesDontMatchException of string;;
 exception FieldNotFoundException of string;;
 exception IncorrectVariableType of string;;
@@ -355,6 +356,7 @@ let rec existsElementInList element list= match list with
     | [] -> false
     | h::t -> if h = element then true else (existsElementInList element t);;
 
+
 let rec getLeastMaximumTypeFromLists list1 list2  = match list1 with
     | [] ->  raise (Exception "No common type was found" );
     | h::t ->  if (existsElementInList h list2) then h else (getLeastMaximumTypeFromLists t list2)
@@ -395,7 +397,23 @@ let rec fieldTypeFromClass fieldList fieldName = match fieldList with
         | (_,vType) -> (fieldTypeFromClass t fieldName);;
 
 
+let rec getMethodDeclarationFromMethodList methodDeclList methodName = match methodDeclList with 
+    | [] -> raise (MethodNotDefinedException " This method is not defined in the given method list")
+    | head::tail -> (match head with 
+        | (returnedType, mName,_,_) when mName = methodName -> head
+        | (_,_,_,_) -> (getMethodDeclarationFromMethodList tail methodName)
+    );;
 
+let rec getMethodDeclarationFromClass program className methodName =  match program with
+    | [] -> raise (ClassNotDefinedException " This class is not defined in the given program")
+    | head::tail -> (match head with
+        | (cName, cDeclaration) when cName = className -> (match cDeclaration with 
+            | (_, _, _, mthDeclList) ->  ( getMethodDeclarationFromMethodList mthDeclList methodName )
+
+        )
+        | (_, _) -> (getMethodDeclarationFromClass tail className methodName)
+
+    );; 
 
 
 let rec wellTypedExpr program environment expCrt = match expCrt with
@@ -513,7 +531,7 @@ let rec wellTypedExpr program environment expCrt = match expCrt with
             )
 
     | InstanceOf (variableName, className) ->
-        if (not (existsClassInProgram program className) ) then raise (ClassNotDefinedException "This class des not exist in the program")
+        if (not (existsClassInProgram program className) ) then raise (ClassNotDefinedException "This class does not exist in the program")
             else
             (
                 let variableType = (wellTypedExpr program environment (Var variableName) ) in
@@ -527,7 +545,7 @@ let rec wellTypedExpr program environment expCrt = match expCrt with
             else
             (
                 let fieldList = (getFields program className) in
-                    if ( fieldsHaveCompatibleTypes program environment fieldList varList) then
+                    if ( variablesAreSubtypes program environment fieldList varList) then
                         (Tclass className)
                     else raise (TypesDontMatchException "The given Variable List is not compatible with the Field List")
             )
@@ -538,22 +556,41 @@ let rec wellTypedExpr program environment expCrt = match expCrt with
                 (Tprim Tvoid)
         )
 
-    | _ -> raise (IncorrectVariableType "An expression type was expected ") 
+
+    | MthInv (classInstanceName, methodName, varList) -> 
+        let className = getClassNameFromClassType (typeFromEnv environment classInstanceName) in
+            if (not (existsClassInProgram program className) ) then raise (ClassNotDefinedException "This class does not exist in the program")
+            else
+            (
+                (*       methodDeclaration = (typ * string * fPrmList * blkExp) *)
+                let methodDeclaration = (getMethodDeclarationFromClass program className methodName) in
+                    match methodDeclaration with 
+                        | (returnedType, _, parametersList, _ ) ->
+                        
+                         if (variablesAreSubtypes program environment (reverse_list parametersList) varList)
+                            then returnedType 
+                            else raise (TypesDontMatchException "The given variable list do not match with the parameter list of the method " )
+            ) 
 
 and 
 
+(* 
+    list1 -> field/parameter list made of ( string, typ )
+    list2 -> variable list made of ( exp )
+ *)
 
-fieldsHaveCompatibleTypes program environment fieldList variableList =
-    match fieldList, variableList with
+ variablesAreSubtypes program environment list1 list2 =
+    match list1, list2 with
         | [],[] ->  true
         | h1::t1, h2::t2 -> (match h1, h2 with
-            | (_, fieldType), exp -> let variableType = (wellTypedExpr program environment exp) in
+            | (_, itemType), exp -> let variableType = (wellTypedExpr program environment exp) in
 
                     (* variableType must be a subtype of fieldType *)
-                if (subtype program variableType fieldType ) then (fieldsHaveCompatibleTypes program environment t1 t2)
+                if (subtype program variableType itemType ) then (variablesAreSubtypes program environment t1 t2)
                     else false
         )
-        | _::_, [] | [],_::_-> false;;
+        | _::_, [] | [],_::_-> false;; 
+
 
 
 
@@ -596,16 +633,16 @@ Printf.printf ("\n");;
 let env =  [("f2",(Tclass "A"));("f1",(Tprim Tint)); ( "z", (Tprim Tint) ); ("m", (Tprim Tbool) )];;
 
 
-                    (* fieldsHaveCompatibleTypes tests *)
-
-let fieldsResponse = (fieldsHaveCompatibleTypes myProgram env (getFields myProgram "A") [ (Var "z") ] ) ;;
-Printf.printf "(fieldsHaveCompatibleTypes myProgram env (getFields myProgram 'A') [ (Var 'm') ] )   :  %b \n" fieldsResponse ;;
+                    (* variablesAreSubtypes tests *)
+ 
+let fieldsResponse = (variablesAreSubtypes myProgram env (getFields myProgram "A") [ (Var "z") ] ) ;;
+Printf.printf "(variablesAreSubtypes myProgram env (getFields myProgram 'A') [ (Var 'm') ] )   :  %b \n" fieldsResponse ;; 
 
                     (* wellTypedExpr tests *)
 
 Printf.printf ("\n\n\n");;
 
-Printf.printf "wellTypedExpr ast env (Value (Bool true))   :  ";;
+Printf.printf "wellTypedExpr (Value (Bool true))   :  ";;
 print_typ ( wellTypedExpr ast env (Value (Bool true)));;
 
 Printf.printf "wellTypedExpr (Var 'f1')   :  ";;
@@ -643,7 +680,7 @@ let ifStmt = If ("m",
         Bnvar ( (AsgnV ("z", Value (Int 1)) )),
         Bnvar ( (AsgnF("f2","f1", Value (Int 1))  ) )
 );;
-Printf.printf "wellTypedExpr ( If ('m', Bnvar ( (AsgnV ('z', Value (Int 1)) )), Bnvar ( (AsgnF('f2','f1', Value (Int 1))  ) )) ) : ";;
+Printf.printf "wellTypedExpr (If ('m', Bnvar ( (AsgnV ('z', Value (Int 1)) )), Bnvar ( (AsgnF('f2','f1', Value (Int 1))  ) )) ) : ";;
 print_typ (wellTypedExpr myProgram env ifStmt ) ;;
 
 Printf.printf "wellTypedExpr (AddInt ( Var 'z',(Value (Int 1)) ) ) : ";;
@@ -655,17 +692,17 @@ print_typ (wellTypedExpr myProgram env (And ( Var "m", Var "m") ));;
 Printf.printf "wellTypedExpr (Gt ((Var 'z'), (Vfld 'f2' 'f1')) ) : ";;
 print_typ (wellTypedExpr myProgram env (Gt ( Var "z" , Vfld ("f2", "f1")    ))) ;;
 
-Printf.printf "wellTypedExpr ( (Cast 'B' 'f2'): ";;
+Printf.printf "wellTypedExpr ((Cast 'B' 'f2'): ";;
 print_typ (wellTypedExpr myProgram env (Cast ("B","f2") ) ) ;;
 
-Printf.printf "wellTypedExpr ( (InstanceOf 'f2' 'A'): ";;
+Printf.printf "wellTypedExpr ((InstanceOf 'f2' 'A'): ";;
 print_typ (wellTypedExpr myProgram env (InstanceOf ("f2","A") ) ) ;;
 
-Printf.printf "wellTypedExpr ( (InstanceOf 'f2' 'B'): ";;
+Printf.printf "wellTypedExpr ((InstanceOf 'f2' 'B'): ";;
 print_typ (wellTypedExpr myProgram env (InstanceOf ("f2","B") ) ) ;;
 
-Printf.printf "wellTypedExpr ( NewObj ('A', [ (Var 'z') ] )): ";;
-print_typ (wellTypedExpr myProgram env ( NewObj ("A", [ (Var "z") ] )) )  ;;
+Printf.printf "wellTypedExpr (NewObj ('A', [ (Var 'z') ] )): ";;
+print_typ (wellTypedExpr myProgram env (NewObj ("A", [ (Var "z") ] )) )  ;;
 
 
 let whileStmt = While ("m",
@@ -674,6 +711,9 @@ let whileStmt = While ("m",
 
 Printf.printf "wellTypedExpr ( While ('m', Bnvar ( (AsgnV ('z', Value (Int 1)) )) ) : ";;
 print_typ (wellTypedExpr myProgram env whileStmt ) ;;
+
+Printf.printf "wellTypedExpr ( MthInv ('f2','m1', [ Value (Int 1);  Value (Int 2)  ]) ) : ";;
+print_typ (wellTypedExpr myProgram env (MthInv ("f2","m1", [ Value (Int 1);  Value (Int 2)  ]) ) ) ;;
 
 
 Printf.printf "\n \n----------- *********************** -------------\n \n";;

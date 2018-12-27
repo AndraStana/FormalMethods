@@ -23,7 +23,7 @@ exp = Value of vall
         | Blk of blkExp
         | Seq of exp * exp   
         | If of string * blkExp * blkExp (*  exp1 =then blk, exp2 = else blk *)
-        | MthCall of string * string * varList (* className + methodName + variableList*)
+        | MthInv of string * string * varList (* classInstanceName + methodName + variableList*)
         | And of exp * exp
         | Or of exp * exp
         | Not of exp
