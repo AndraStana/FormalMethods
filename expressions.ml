@@ -459,7 +459,7 @@ let rec wellTypedExpr program environment expCrt = match expCrt with
 
     | Blk (Bvar(typ,var,exp)) -> (wellTypedExpr program ((var,typ)::environment) exp)
     | Blk (Bnvar exp) -> (wellTypedExpr program environment exp)
-    | Seq (_,exp2) -> (wellTypedExpr program environment exp2)
+    | Seq (exp1, exp2) -> let _ = (wellTypedExpr program environment exp1) in (wellTypedExpr program environment exp2)
     | If (varName, blk1, blk2 ) ->
         if ( not (subtype program (typeFromEnv environment varName) (Tprim Tbool)) ) then raise (IncorrectVariableType "A subtype of bool was expected for if variable")
         else (
@@ -579,13 +579,13 @@ and
     list2 -> variable list made of ( exp )
  *)
 
- variablesAreSubtypes program environment list1 list2 =
+variablesAreSubtypes program environment list1 list2 =
     match list1, list2 with
         | [],[] ->  true
         | h1::t1, h2::t2 -> (match h1, h2 with
             | (_, itemType), exp -> let variableType = (wellTypedExpr program environment exp) in
 
-                    (* variableType must be a subtype of fieldType *)
+                    (* variableType must be a subtype of itemType *)
                 if (subtype program variableType itemType ) then (variablesAreSubtypes program environment t1 t2)
                     else false
         )
@@ -593,9 +593,33 @@ and
 
 
 
+let rec reverse_list lst = match lst with
+    | [] -> []
+    | h::t -> match h with
+         (fType,fName) -> (fName,fType):: (reverse_list t);;
+
+
+let append l1 l2 =
+  let rec loop acc l1 l2 =
+    match l1, l2 with
+    | [], [] -> List.rev acc
+    | [], h :: t -> loop (h :: acc) [] t
+    | h :: t, l -> loop (h :: acc) t l
+    in
+    loop [] l1 l2
+
+(* mthDecl = (typ * string * fPrmList * blkExp) *)
+
+let rec isWellTypedMethDecl program environment methDecl = match methDecl with
+    | (retType, methName, paramList, blkExp)  ->
+
+
+    let newEnvironment = (append environment (reverse_list paramList)) in
+        let bodyReturnedType = (wellTypedExpr program newEnvironment blkExp) in
+            (subtype program bodyReturnedType retType);;
+
 
 Printf.printf "\n \n----------- WELL-TYPED EXPRESSIONS TESTS ----------------------------------------------------\n \n";;
-
 
                     (* getLeastMaximumType tests *)
 
@@ -715,5 +739,34 @@ print_typ (wellTypedExpr myProgram env whileStmt ) ;;
 Printf.printf "wellTypedExpr ( MthInv ('f2','m1', [ Value (Int 1);  Value (Int 2)  ]) ) : ";;
 print_typ (wellTypedExpr myProgram env (MthInv ("f2","m1", [ Value (Int 1);  Value (Int 2)  ]) ) ) ;;
 
+
+Printf.printf "\n \n----------- WELL-TYPED METHODS TESTS ----------------------------------------------------\n \n";;
+
+(* 
+    int m1(int a, int b)
+     { (int c)
+        c=a+b;
+        c
+    };
+    
+*)
+
+let methodDeclarationSampe = (
+        (Tprim Tint), 
+
+        "m1",
+        [
+            (Tprim Tint, "a" );
+            (Tprim Tint, "b" )
+        ],
+        Blk ( Bvar (  (Tprim Tint), "c",
+
+                    Seq(  AsgnV ("c", AddInt ( Var "a", Var "b"))   ,  (Var "c") )                     
+            )
+        )
+        );; 
+
+                 
+Printf.printf "isWellTypedMethDecl -->  int m1(int a, int b) { (int c) c=a+b; c}; : %b " (isWellTypedMethDecl myProgram env methodDeclarationSampe);;
 
 Printf.printf "\n \n----------- *********************** -------------\n \n";;
