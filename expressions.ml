@@ -619,6 +619,16 @@ let rec isWellTypedMethDecl program environment methDecl = match methDecl with
             (subtype program bodyReturnedType retType);;
 
 
+(*well-typed class declaration 
+classDecl = (className * baseClassName * fldDeclList * mthDeclList) 
+*)
+let rec isWellTypedClassDecl program classDecl = match classDecl with
+    | (classN,baseClassN,fieldL,methodL) -> match methodL with 
+        | [] -> true
+        | methDecl :: tail -> (isWellTypedMethDecl program [("this", (Tclass classN))] methDecl )
+            && (isWellTypedClassDecl program (classN,baseClassN, fieldL, tail)) ;;
+
+
 Printf.printf "\n \n----------- WELL-TYPED EXPRESSIONS TESTS ----------------------------------------------------\n \n";;
 
                     (* getLeastMaximumType tests *)
@@ -768,5 +778,38 @@ let methodDeclarationSampe = (
 
                  
 Printf.printf "isWellTypedMethDecl -->  int m1(int a, int b) { (int c) c=a+b; c}; : %b " (isWellTypedMethDecl myProgram env methodDeclarationSampe);;
+
+
+(*
+class A extends Object 
+{
+    int m1(int a,int b)
+    {
+        (int c)
+        c=a+b;
+        c
+    };
+} 
+*)
+let classDeclarationSample=("A", "Object",
+    (*fields decl list*)
+    [],
+    (*methods decl list*)
+    [((Tprim Tint), 
+
+        "m1",
+        [
+            (Tprim Tint, "a" );
+            (Tprim Tint, "b" )
+        ],
+        Blk ( Bvar (  (Tprim Tint), "c",
+
+                    Seq(  AsgnV ("c", AddInt ( Var "a", Var "b"))   ,  (Var "c") )                     
+            )
+        ))
+);;
+
+Printf.printf "isWellTypedClassDecl --> class A extends Object { int m1(int a, int b) { (int c) c=a+b; c};} : %b " (isWellTypedClassDecl myProgram  classDeclarationSample);;
+
 
 Printf.printf "\n \n----------- *********************** -------------\n \n";;
