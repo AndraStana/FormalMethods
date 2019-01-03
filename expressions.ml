@@ -629,6 +629,136 @@ let rec isWellTypedClassDecl program classDecl = match classDecl with
             && (isWellTypedClassDecl program (classN,baseClassN, fieldL, tail)) ;;
 
 
+(*------------------well typed program *)
+
+let rec listContains lst item = match lst with
+    | [] -> false
+    | h::t -> begin
+                if h = item then true
+                else (listContains t item)
+            end ;;
+
+(*no duplicates-> true, duplicates -> false*)
+let rec checkDuplicates lst = match lst with
+    | [] -> true
+    | h::t -> begin 
+                if (listContains t h) ==true then false
+                else checkDuplicates t
+                end ;;
+
+(*gets list of all class names*)
+let rec getClassNames program =  match program with
+    | [] -> []
+    | (classN,_)::tail -> classN::(getClassNames tail);;
+
+(*gets list of all method names from a class*)
+let rec getMethodNames methodList = match methodList with
+    | [] -> []
+    | (_,methodName,_,_)::tail -> methodName::(getMethodNames tail);;
+
+(*gets list of all field names from a class*)
+let rec getFieldNames fieldList = match fieldList with
+    | [] -> []
+    | (_,fieldName)::tail -> fieldName::(getFieldNames tail);;
+
+(*-------------------no duplicate classes in program*)
+let  freeFromDuplicateClasses program = checkDuplicates (getClassNames program);;
+
+(*------------------ no duplicate members inside each class*)
+let freeFromDuplicateMethods program classDecl = match classDecl with
+    |(cN,baseCN,fldLst,methLst) -> checkDuplicates (getMethodNames methLst);;
+
+let freeFromDuplicateFields program classDecl = match classDecl with
+    |(cN,baseCN,fldLst,methLst) -> checkDuplicates (getFieldNames fldLst);;
+
+let classIsFreeFromDuplicates program classDecl = (freeFromDuplicateMethods program classDecl) && (freeFromDuplicateFields program classDecl);;
+
+let rec allClassesAreFreeFromDuplicates program = match program with 
+    | [] -> true
+    | (_,classDecl)::t -> (classIsFreeFromDuplicates program classDecl) && ( allClassesAreFreeFromDuplicates t);;
+
+(*----------------------all classes are well-typed*)
+let rec allClassesAreWellTyped program = match program with 
+    | [] -> true 
+    | (_,classDecl)::t -> (isWellTypedClassDecl program classDecl) && (allClassesAreWellTyped t);;
+
+(*------------------------- last class contains main method *)
+let rec hasMainMethod methodNamesLst = match methodNamesLst with
+    | [] -> false
+    | h::tail -> begin
+                if  h="main" then true
+                else (hasMainMethod tail)
+            end;;
+
+let rec lastClassContainsMain program = match program with 
+    | [] -> false
+    | [(name,cDecl)]-> begin 
+        match cDecl with 
+        | (cName,bName,fldLst,methLst) -> hasMainMethod (getMethodNames methLst)
+        end
+    | _::t -> lastClassContainsMain t;;
+
+(*-------------no cycle in class hierarchy -> we need a copy of the initial program when we search for a different class*)
+let rec classHierarchyIsOkForClass initProgram program className baseList = match program with 
+    | [] -> true
+    | (cName,cDecl)::tail -> begin
+                            if cName=className then (*class is found -> check if base class is in list*)
+                                match cDecl with 
+                                | (cN,baseN,_,_) -> begin
+                                                        if baseN="Object" then true
+                                                        else
+                                                            if (listContains baseList baseN) then false
+                                                            else (classHierarchyIsOkForClass initProgram  initProgram baseN (append [baseN] baseList))
+                                                    end
+                            else (*search for the class if not matched yet*)
+                                (classHierarchyIsOkForClass initProgram tail className baseList)
+                            end;;
+
+let rec noCycleInClassHierarchy initProgram program = match program with 
+    | [] -> true 
+    | (cName,cDecl)::tail -> (classHierarchyIsOkForClass initProgram initProgram cName []) && (noCycleInClassHierarchy initProgram tail);;
+
+
+(*------------------ class inheritance is ok *)
+(* returns the list of methods for all base classes*)
+let rec getBaseClassMethods initProgram program classN methodList= match program with 
+    | [] -> methodList 
+    | (cName, cDecl)::tail -> begin
+                            if cName = classN then 
+                                match cDecl with 
+                                |(cN,baseN,fieldLst,methLst) -> begin
+                                                            if baseN="Object" then methLst
+                                                            else (getBaseClassMethods initProgram initProgram baseN (append methLst methodList))
+                                                            end
+                            else (getBaseClassMethods initProgram tail classN methodList)
+                            end ;; 
+
+(*if we have a method with the same name ->must have same type and param list *)
+let rec methodCorrectlyInherited (mType,mName,mParams,mBody) methLst = match methLst with
+    | [] -> true
+    | h::t -> match h with
+        | (mType2,mName2,mParams2,mBody2) -> begin  
+                                            if mName=mName2 then (*must have same type and params*) 
+                                                if mType=mType2 && mParams=mParams2 then true
+                                                else false
+                                            else (methodCorrectlyInherited (mType,mName,mParams,mBody) t)
+                                        end;;
+
+(*check all methods of a class*)
+let rec isInheritanceOkForClass classMethods baseClassMethods = match classMethods with 
+    | [] -> true
+    | h::t ->  match h with 
+        | (mT,mN,mP,mB) -> (methodCorrectlyInherited (mT,mN,mP,mB) baseClassMethods) && (isInheritanceOkForClass t baseClassMethods);;  
+
+let rec checkInheritanceForAllClasses initProgram program = match program with 
+    | [] -> true 
+    | (cName,cDecl)::t -> match cDecl with 
+                        |(classN,baseN,fldL,methL) -> (isInheritanceOkForClass methL (getBaseClassMethods initProgram initProgram baseN [] )) && (checkInheritanceForAllClasses initProgram t);;
+
+
+let isWellTypedProgram program = (freeFromDuplicateClasses program) && (lastClassContainsMain program) && (allClassesAreFreeFromDuplicates program)
+    && (allClassesAreWellTyped program) && (noCycleInClassHierarchy program program) && (checkInheritanceForAllClasses program program);;
+
 Printf.printf "\n \n----------- WELL-TYPED EXPRESSIONS TESTS ----------------------------------------------------\n \n";;
 
                     (* getLeastMaximumType tests *)
@@ -807,9 +937,108 @@ let classDeclarationSample=("A", "Object",
                     Seq(  AsgnV ("c", AddInt ( Var "a", Var "b"))   ,  (Var "c") )                     
             )
         ))
+    ]
 );;
 
 Printf.printf "isWellTypedClassDecl --> class A extends Object { int m1(int a, int b) { (int c) c=a+b; c};} : %b " (isWellTypedClassDecl myProgram  classDeclarationSample);;
 
+(*
+class B extends Object
+{
+    int m2(int x, int y) 
+    {
+        (int n)
+        n=x-y;
+        n
+    };
+}
+*)
+let classB=("B", "A",
+    (*fields decl list*)
+    [
+        (Tprim Tint, "c" );
+        (Tprim Tint, "d" )
+    ],
+    (*methods decl list*)
+    [((Tprim Tint), 
+
+        "m1",
+        [
+            (Tprim Tint, "x" );
+            (Tprim Tint, "y" )
+        ],
+        Blk ( Bvar (  (Tprim Tint), "n",
+
+                    Seq(  AsgnV ("n", DiffInt ( Var "x", Var "y"))   ,  (Var "n") )                     
+            )
+        ))
+    ]
+);;
+(*test for duplicate classes*)
+let testProg=[("A",classDeclarationSample);("B",classB)];;
+Printf.printf "freeFromDuplicateClasses --> class A extends Object { int m1(int a, int b) { (int c) c=a+b; c};},
+    class A extends Object { int m2(int x, int y) {(int n) n=x-y; n };}  : %b " (freeFromDuplicateClasses testProg);;
+
+(*test for main last method*)
+Printf.printf "lastClassContainsMain --> prog  : %b " (lastClassContainsMain testProg);;
+
+(*test for no duplicate methods*)
+Printf.printf "freeFromDuplicateMethods --> testProg classB  : %b " (freeFromDuplicateMethods testProg classB);;
+
+(*test for no duplicate fields*)
+Printf.printf "freeFromDuplicateFields --> testProg classB  : %b " (freeFromDuplicateFields testProg classB);;
+
+(*class is free from duplicates*)
+Printf.printf "classIsFreeFromDuplicates --> testProg classB  : %b " (classIsFreeFromDuplicates testProg classB);;
+
+(*all classes are free from duplicates*)
+Printf.printf "allClassesAreFreeFromDuplicates --> testProg  : %b " (allClassesAreFreeFromDuplicates testProg);;
+
+(*hierarchy is ok for class *) 
+classHierarchyIsOkForClass testProg testProg "B" [] ;;
+noCycleInClassHierarchy testProg testProg;;
+noCycleInClassHierarchy ast ast;;
+
+(* check inheritance for all classes*)
+getBaseClassMethods testProg testProg "B" [];; 
+(*->
+ [(Tprim Tint, "m1", [(Tprim Tint, "a"); (Tprim Tint, "b")],
+  Blk
+   (Bvar (Tprim Tint, "c",
+     Seq (AsgnV ("c", AddInt (Var "a", Var "b")), Var "c"))))]
+*)
+methodCorrectlyInherited (Tprim Tint, "m1", [(Tprim Tint, "a"); (Tprim Tint, "b")],
+  Blk
+   (Bvar (Tprim Tint, "c",
+     Seq (AsgnV ("c", AddInt (Var "a", Var "b")), Var "c")))) 
+     [(Tprim Tint, "m1", [(Tprim Tint, "a"); (Tprim Tint, "b")],
+  Blk
+   (Bvar (Tprim Tint, "c",
+     Seq (AsgnV ("c", AddInt (Var "a", Var "b")), Var "c"))))];; 
+ (*->true*)
+
+ isInheritanceOkForClass 
+  [((Tprim Tint), 
+
+        "m2",
+        [
+            (Tprim Tint, "x" );
+            (Tprim Tint, "y" )
+        ],
+        Blk ( Bvar (  (Tprim Tint), "n",
+
+                    Seq(  AsgnV ("n", DiffInt ( Var "x", Var "y"))   ,  (Var "n") )                     
+            )
+        ))
+    ]
+
+ [(Tprim Tint, "m1", [(Tprim Tint, "a"); (Tprim Tint, "b")],
+  Blk
+   (Bvar (Tprim Tint, "c",
+     Seq (AsgnV ("c", AddInt (Var "a", Var "b")), Var "c"))))] ;;
+(* -> true*)
+
+
+checkInheritanceForAllClasses testProg testProg;; (*->true*)
 
 Printf.printf "\n \n----------- *********************** -------------\n \n";;
